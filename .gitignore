@@ -1,0 +1,12 @@
+# Ignore all files and directories
+* 
+
+# but *.py and *.md
+#!*.py
+#!*.md
+
+# but correlation.py, distribution.py, *.md and .gitignore
+!correlation.py
+!distribution.py
+!*.md
+!.gitignore
