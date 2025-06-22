@@ -1,47 +1,51 @@
-"""This module defines the get_corrs() function, which determines
+"""This module defines the get_corrs() function, which returns
 pairwise correlations for each pair of devices, independently
 for each room, based on the Wireless Indoor Localization dataset
 (see README.md for details).
 
-The module also features a command-line interface.
+The module also features a command line interface which enables saving
+the results to an HTML file.
 """
 
 import pandas as pd
+
 from argparse import ArgumentParser
 from pathlib import Path
 
 # Public API declaration
-__all__ = ['get_corrs']
+__all__ = ['get_corrs', 'INPUT_FILE', 'OUTPUT_FILE', 'MPL_COLORMAP', 'PRECISION']
 
+INPUT_FILE = 'data/wifi_localization.txt'
+OUTPUT_FILE = 'data/correlations.html'
+MPL_COLORMAP = 'Greens'
+PRECISION = 6
+_HTML_TITLE = 'Wi-fi signal strength correlation values.'
 
-_DEF_FILENAME = 'wifi_localization.txt'
-_DEF_OUTFILE = 'correlations.html'
-_DEF_COLORMAP = 'Greens'
-_DEF_PRECISION = 6
-_DEF_TITLE = 'Wi-fi signal strength correlation values.'
+def corr_to_html(data_file: str = INPUT_FILE,
+                 colormap: str = MPL_COLORMAP,
+                 precision: int = PRECISION,
+                 absolute: bool = False) -> str:
 
-def corr_to_html(data_file: str = _DEF_FILENAME,
-                 outfile: str = _DEF_OUTFILE,
-                 colormap: str = _DEF_COLORMAP,
-                 precision: int = _DEF_PRECISION,
-                 absolute: bool = False) -> int:
+    """Takes a CSV-file with the raw data of the Wi-Fi Localization project (see README.md
+    for details). Returns an HTML output containing four tables, each representing the
+    correlation table of signal strength values across all devices, for one room.
+    Input parameters:
 
-    """Produces an HTML file with four tables, each representing the correlation
-    table of signal strength values for one room.
+    data_file: a CSV-file containing the raw data of the Wi-Fi Localization project.
 
-    outfile: the resulting HTML file;
+    colormap: matplotlib color map to use as a heat map for each table.
 
-    colormap: matplotlib color map to use as a heat map;
+    precision: the floating point precision to format float values (the default values for
+    the abovementioned parameters are specified as the module's constants).
 
-    precision: the floating point precision to format float values;
+    absolute: if True, output the absolute values of correlation coefficients.'
 
-    absolute: output absolute values of correlation coefficients.'
-
-    Returns: the number of bytes written.
-
+    Returns: the HTML string.
     """
+
+    if not Path(data_file).is_file():
+        raise FileNotFoundError(f'File {data_file} can not be found.')
     
-    #global df
     df = pd.read_csv(data_file,
                      sep = '\t',
                      header = None,
@@ -50,9 +54,9 @@ def corr_to_html(data_file: str = _DEF_FILENAME,
 
     df = df.groupby('room').corr().abs() if absolute else df.groupby('room').corr()
 
-    html = [f'<!DOCTYPE html><html lang="en"><head><title>{_DEF_TITLE}'
+    html = [f'<!DOCTYPE html><html lang="en"><head><title>{_HTML_TITLE}'
             '</title></head><body style="background-color: '
-            f'#f2f2f2;"><article><H1>{_DEF_TITLE}</H1>']
+            f'#f2f2f2;"><article><h1>{_HTML_TITLE}</h1>']
 
     for i in df.index.get_level_values(0).unique():
         html.append(
@@ -68,82 +72,99 @@ def corr_to_html(data_file: str = _DEF_FILENAME,
 
     html.append('</article></body></html>')
 
-    with open(outfile, 'wt') as wh:
-        bts = wh.write('<br><br>'.join(html))
-
-    return bts
+    return '<br><br>'.join(html)
     
 
 # CLI
 # ---
 
-# 'correaltion.py data_file outfile colormap precision'
+def main():
 
-if __name__ == '__main__':
-    
-    parser = ArgumentParser(prog = 'correaltion',
-                            description = 'Saves pairwise correlations for each pair of devices '
-                            'to an HTML file, one table for each room.',
-                            epilog = 'Thank you for using %(prog)s!',
-                            )
+    _DESCRIPTION = \
+    '''Takes a CSV-file with the raw data of the Wi-Fi Localization project (see README.md
+    for details). Saves the result to an HTML file containing four tables, each representing
+    the correlation table of signal strength values across all devices, for one room.'''
 
-    parser.add_argument(
+    parser = ArgumentParser(prog = 'correlation',
+                            description = _DESCRIPTION,
+                            epilog = 'Thank you for using %(prog)s!')
+
+    # Group the following two options as related to file names
+    files_help_group = parser.add_argument_group(
+        title='Input and output files',
+        description='The script takes raw CSV data from one file and saves the results '
+                    'to another file, as specified below.'
+        )
+    files_help_group.add_argument(
         '-df', '--data_file',
-        default=_DEF_FILENAME,
+        default=INPUT_FILE,
         help='Path to the source data file.'
-        f' Defaults to {_DEF_FILENAME}'
+        f' Defaults to {INPUT_FILE}.',
+        metavar='<source file>'
         )
-
-    parser.add_argument(
+    files_help_group.add_argument(
         '-rf', '--result_file',
-        default=_DEF_OUTFILE,
-        help='Path to the HTML file with results.'
-        f' Defaults to {_DEF_OUTFILE}'
+        default=OUTPUT_FILE,
+        help='Path to the HTML file with results (will be overwritten if exists).'
+        f' Defaults to {OUTPUT_FILE}.',
+        metavar='<target file>'
+        )
+    
+
+    # Group the following options as related to data presentation
+    data_help_group = parser.add_argument_group(
+        title='Data formatting and presentation',
+        description='The following options relate to how the data is presented in HTML tables.'
         )
 
-    parser.add_argument(
+    data_help_group.add_argument(
         '-cm', '--colormap',
-        default=_DEF_COLORMAP,
-        help='matplotlib color map to use as a heat map.'
-        f' Defaults to "{_DEF_COLORMAP}"'
+        default=MPL_COLORMAP,
+        help='matplotlib color map to use as a heat map for each table.'
+        f' Defaults to "{MPL_COLORMAP}."',
+        metavar='<matplotlib color map>'
         )
 
-    parser.add_argument(
+    data_help_group.add_argument(
         '-p', '--precision',
-        default=_DEF_PRECISION,
+        default=PRECISION,
         choices=list(range(0, 7)),
         help='The floating point precision to format float values.'
-        f' Defaults to {_DEF_PRECISION}',
-        type=int
+        f' Defaults to {PRECISION}.',
+        type=int,
+        metavar='<decimal precision>'
         )
 
-    parser.add_argument(
+    data_help_group.add_argument(
         '-a', '--absolute',
         action='store_true',
-        default=False,
-        help='Output absolute values of correlation coefficients.'
-        f' Defaults to False'
+        help='Output the absolute values of correlation coefficients.'
+        f' Defaults to False (if not provided).',
         )
 
     args = parser.parse_args()
+
+    #print('The following arguments have been received:\n', args)
+    #import sys; sys.exit()
     
-    corr_to_html(
+    html = corr_to_html(
         data_file = args.data_file,
-        outfile = args.result_file,
         colormap = args.colormap,
         precision = args.precision,
         absolute = args.absolute
         )
-    
 
+    result_file_path = Path(args.result_file)
+    if not result_file_path.parent.exists():
+        result_file_path.parent.mkdir()
+    result_file_path.write_text(html, encoding='utf-8')
+##    else:
+##        parser.error(
+##            f'Directory "{result_file_path.parent}" can not be created '
+##            f'for the file {args.result_file}')
 
-
-
-
-
-
-
-
+if __name__ == '__main__':
+    main()
 
 
 
